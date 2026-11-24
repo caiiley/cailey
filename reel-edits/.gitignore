@@ -1,0 +1,11 @@
+# media and generated files stay local (large, and personal footage)
+*/assets/
+*/work/
+*/renders/
+*/snapshots/
+*/index.html
+*.mp4
+*.mov
+*.wav
+*.webm
+reel1/

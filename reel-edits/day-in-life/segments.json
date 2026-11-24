@@ -1,0 +1,16 @@
+[
+ {
+  "id": "main",
+  "clip": "c1",
+  "in": 0.0,
+  "out": 57.1,
+  "zoom": 1.0,
+  "cx": 0.5,
+  "cy": 0.5,
+  "line": "full voiceover, one continuous take",
+  "src_in": 0.0,
+  "src_out": 57.1,
+  "frame": 0,
+  "frames": 1713
+ }
+]
