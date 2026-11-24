@@ -88,53 +88,34 @@ for spec, spark in BLOCKS:
 assert wi == len(W), f'{len(W) - wi} spoken words without a caption'
 
 C_HTML, TW = [], []
-for b, (lines, spark) in enumerate(blocks):
-    flat = [w for _, ln in lines for w in ln]
-    a = max(0.0, flat[0][0] - .06)
-    nxt = blocks[b + 1][0] if b + 1 < len(blocks) else None
-    nstart = min(w[0] for _, ln in nxt for w in ln) - .06 if nxt else DUR
-    end = min(nstart, flat[-1][1] + 1.2, DUR)
-    rows = []
-    for li, (kind, ln) in enumerate(lines):
-        if not ln:
-            continue
-        spans = []
-        for k, (t, _, txt) in enumerate(ln):
-            gid = f'b{b}-{li}-{k}'
-            spans.append(f'<span id="{gid}" class="gw">{txt}</span>')
-            if kind == 's':
-                TW.append(f"tl.fromTo('#{gid}',{{autoAlpha:0,y:14}},{{autoAlpha:1,y:0,duration:.26,ease:'power2.out',immediateRender:false}},{max(a, t - .04):.3f});")
-            else:
-                TW.append(f"tl.fromTo('#{gid}',{{autoAlpha:0,y:22,scale:.92}},{{autoAlpha:1,y:0,scale:1,duration:.4,ease:'power2.out',immediateRender:false}},{max(a, t - .04):.3f});")
-        rows.append(f'<div class="{kind}">{" ".join(spans)}</div>')
-    C_HTML.append(f'<div id="blk{b}" class="gcap">{"".join(rows)}</div>')
-    TW.append(f"gsap.set('#blk{b} .gw',{{autoAlpha:0}});")
+# static captions: short phrases (break at punctuation, ~28 chars max), no animation, plain sans
+ALL = [w for lines, _ in blocks for _, ln in lines for w in ln]
+chunks, cur = [], []
+for w in ALL:
+    if cur and len(' '.join(x[2] for x in cur + [w])) > 28:
+        chunks.append(cur); cur = []
+    cur.append(w)
+    if w[2][-1] in ',.?!':
+        chunks.append(cur); cur = []
+if cur:
+    chunks.append(cur)
+for c, ch in enumerate(chunks):
+    a_ = max(0.0, ch[0][0] - .05)
+    nstart = chunks[c + 1][0][0] - .05 if c + 1 < len(chunks) else DUR
+    end = min(nstart, ch[-1][1] + .8, DUR)
+    txt = ' '.join(x[2] for x in ch).rstrip(',.')
+    C_HTML.append(f'<div id="cap{c}" class="cap">{txt}</div>')
+    TW.append(f"gsap.set('#cap{c}',{{autoAlpha:0}});")
+    TW.append(f"tl.set('#cap{c}',{{autoAlpha:1}},{a_:.3f});")
     if end < DUR - .01:
-        TW.append(f"tl.to('#blk{b}',{{autoAlpha:0,duration:.14}},{end - .14:.3f});")
-        TW.append(f"tl.set('#blk{b}',{{autoAlpha:0}},{end:.3f});")
-    if spark:   # twinkling sparkles beside the italic line
-        it = [w for kind, ln in lines if kind == 'e' for w in ln]
-        t0 = it[0][0]
-        for k, (x, y, sz, dt) in enumerate([(120, 1190, 56, .08), (905, 1150, 40, .22), (880, 1290, 28, .4)]):
-            if t0 + dt + .3 > end - .14:
-                continue
-            sid = f'sp{b}-{k}'
-            C_HTML.append(f'<div id="{sid}" class="spark" style="left:{x}px;top:{y}px;font-size:{sz}px">&#10022;</div>')
-            TW += [f"gsap.set('#{sid}',{{autoAlpha:0,scale:0}});",
-                   f"tl.to('#{sid}',{{autoAlpha:1,scale:1,duration:.3,ease:'back.out(2.5)'}},{t0 + dt:.3f});"]
-            if t0 + dt + 1.1 < end - .14:
-                TW.append(f"tl.to('#{sid}',{{scale:.7,duration:.4,yoyo:true,repeat:1,ease:'sine.inOut'}},{t0 + dt + .3:.3f});")
-            if end < DUR - .01:
-                TW += [f"tl.to('#{sid}',{{autoAlpha:0,duration:.14}},{end - .14:.3f});", f"tl.set('#{sid}',{{autoAlpha:0}},{end:.3f});"]
+        TW.append(f"tl.set('#cap{c}',{{autoAlpha:0}},{end:.3f});")
 
 # soft punch on the source's own shot changes (detected with ffmpeg scene filter)
 SHOTS = [4.0, 10.667, 12.533, 15.733, 17.067, 20.367, 22.567, 24.967, 27.333, 32.767, 35.0, 40.5, 44.2, 46.467, 48.767, 51.733]
-for t in SHOTS:
+for t in []:
     TW.append(f"tl.fromTo('#stage',{{scale:1.04}},{{scale:1,duration:.32,ease:'power2.out',immediateRender:false}},{t:.3f});")
 
-spark_t = [[w for kind, ln in lines if kind == 'e' for w in ln][0][0] for lines, s in blocks if s]
-SFX = [('whoosh-short', .02, .2)] + [('sparkle', t, .22) for t in spark_t] + \
-      [('whoosh-short', t - .1, .14) for t in (12.533, 27.333, 46.467)] + [('pop', 49.62, .14)]
+SFX = []
 SFX_LEN = {'whoosh-short': .57, 'pop': .72, 'sparkle': 1.8, 'click': .3, 'click-soft': .37}
 SFX_GAIN = 0.75
 
@@ -163,12 +144,8 @@ html,body{{width:1080px;height:1920px;overflow:hidden;background:#000}}
 #gwarm{{z-index:7;background:linear-gradient(180deg,rgba(255,226,200,.10),rgba(255,196,170,.16));mix-blend-mode:soft-light}}
 #gvig{{z-index:7;background:radial-gradient(120% 70% at 50% 45%,rgba(255,255,255,0) 52%,rgba(60,35,25,.34) 100%)}}
 #ggrad{{z-index:7;background:linear-gradient(180deg,rgba(60,35,25,.22) 0%,rgba(60,35,25,0) 26%,rgba(60,35,25,0) 44%,rgba(45,26,18,.42) 66%,rgba(40,24,18,.55) 100%)}}
-.gcap{{position:absolute;left:70px;right:110px;bottom:470px;z-index:8;text-align:center;color:#FFF8EF;
-  text-shadow:0 2px 26px rgba(60,30,20,.6),0 1px 4px rgba(40,20,10,.35)}}
-.gcap .s{{font:500 58px/1.18 Inter;letter-spacing:-1px}}
-.gcap .e{{font:italic 400 150px 'Instrument Serif';line-height:.95;color:{YEL};margin:2px 0 6px;white-space:nowrap}}
-.gw{{display:inline-block}}
-.spark{{position:absolute;z-index:8;color:{YEL};line-height:1;text-shadow:0 0 18px rgba(250,230,122,.5)}}
+.cap{{position:absolute;left:90px;right:130px;top:1180px;z-index:8;text-align:center;color:#fff;
+  font:600 60px/1.15 Inter;letter-spacing:-.5px;text-shadow:0 2px 10px rgba(0,0,0,.55),0 0 2px rgba(0,0,0,.6)}}
 '''
 
 SAFE_GUIDE = ('<div style="position:absolute;inset:0;z-index:99;pointer-events:none">'
@@ -179,7 +156,7 @@ SAFE_GUIDE = ('<div style="position:absolute;inset:0;z-index:99;pointer-events:n
               '<div style="position:absolute;right:0;width:100px;top:1155px;height:315px;background:rgba(255,0,0,.28)"></div></div>')
 
 nl = '\n'
-tweens = [f"gsap.set('.g',{{filter:'{GIRL_F}'}});"] + TW
+tweens = TW
 html = f'''<!doctype html>
 <html lang="en" data-resolution="portrait">
 <head>
@@ -196,7 +173,6 @@ html = f'''<!doctype html>
   <div id="stage">
     <video id="bgv" class="full g" src="assets/aroll.mp4" muted playsinline data-start="0" data-media-start="0" data-duration="{DUR:.3f}" data-track-index="0"></video>
   </div>
-  <div id="gwarm" class="fx"></div><div id="gvig" class="fx"></div><div id="ggrad" class="fx"></div>
 {nl.join(C_HTML)}
 {SAFE_GUIDE if SAFE else ''}
 </div>
